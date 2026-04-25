@@ -5,33 +5,45 @@ import { createClient } from '@/lib/supabase'
 import { Message } from '@/types/database'
 import MessageBubble from './message-bubble'
 import ChatInput from './chat-input'
-import { Bot } from 'lucide-react'
+import { Bot, LogIn, UserPlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function ChatWindow({ chatId: initialChatId }: { chatId: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [selectedModel, setSelectedModel] = useState('qwen/qwen3-32b')
+  const [user, setUser] = useState<any>(null)
+  const [guestMessageCount, setGuestMessageCount] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
-  // Internal state for the actual chatId being used
-  const [currentChatId, setCurrentChatId] = useState(initialChatId)
-
-  // Memoize supabase client
   const supabase = useMemo(() => createClient(), [])
 
-  // Sync internal state with props
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    checkUser()
+
+    // Initialize guest count from sessionStorage
+    const savedCount = sessionStorage.getItem('guest_msg_count')
+    if (savedCount) setGuestMessageCount(parseInt(savedCount))
+  }, [supabase])
+
   useEffect(() => {
     setCurrentChatId(initialChatId)
     if (initialChatId === 'new') {
       setMessages([])
     }
   }, [initialChatId])
+
+  const [currentChatId, setCurrentChatId] = useState(initialChatId)
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -40,7 +52,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
   }, [])
 
   const fetchMessages = useCallback(async () => {
-    if (!currentChatId || currentChatId === 'new') return
+    if (!currentChatId || currentChatId === 'new' || !user) return
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -48,7 +60,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
       .order('created_at', { ascending: true })
     
     if (data) setMessages(data)
-  }, [currentChatId, supabase])
+  }, [currentChatId, supabase, user])
 
   useEffect(() => {
     fetchMessages()
@@ -59,6 +71,10 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
   }, [messages, streamingContent, scrollToBottom])
 
   const handleSend = async (content: string, model: string, isRegenerate = false, overrideMessages?: Message[]) => {
+    if (!user && guestMessageCount >= 4) {
+      return // Limit reached
+    }
+
     setLoading(true)
     setSelectedModel(model)
 
@@ -66,11 +82,58 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
     let currentMessages = overrideMessages || [...messages]
 
     try {
-      // 1. If this is a new chat, create it first
-      if (activeChatId === 'new') {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('Not authenticated')
+      // 1. GUEST MODE HANDLING
+      if (!user) {
+        if (!isRegenerate) {
+          const newUserMsg = {
+            id: Math.random().toString(),
+            role: 'user',
+            content: content,
+            created_at: new Date().toISOString()
+          } as any
+          currentMessages = [...currentMessages, newUserMsg]
+          setMessages(currentMessages)
+          
+          const newCount = guestMessageCount + 1
+          setGuestMessageCount(newCount)
+          sessionStorage.setItem('guest_msg_count', newCount.toString())
+        }
 
+        // Get AI Stream
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            messages: currentMessages.map(m => ({ role: m.role, content: m.content })),
+            model: model,
+            conversationId: 'guest'
+          })
+        })
+
+        if (!response.body) return
+        const reader = response.body.getReader()
+        let fullContent = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = new TextDecoder().decode(value)
+          fullContent += chunk
+          setStreamingContent(fullContent)
+        }
+
+        const newAiMsg = {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: fullContent,
+          created_at: new Date().toISOString()
+        } as any
+        setMessages(prev => [...prev, newAiMsg])
+        setStreamingContent('')
+        return
+      }
+
+      // 2. AUTHENTICATED MODE (Normal Logic)
+      if (activeChatId === 'new') {
         const { data: newConv, error: convError } = await supabase
           .from('conversations')
           .insert({ 
@@ -82,13 +145,10 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
           .single()
 
         if (convError || !newConv) throw convError || new Error('Failed to create conversation')
-        
         activeChatId = newConv.id
         setCurrentChatId(activeChatId)
-        // We will redirect at the end to avoid component unmount/remount mid-stream
       }
 
-      // 2. Save User Message
       if (!isRegenerate) {
         const { data: userMsg } = await supabase
           .from('messages')
@@ -108,7 +168,6 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
 
       setStreamingContent('')
 
-      // 3. Get AI Stream
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: JSON.stringify({
@@ -119,7 +178,6 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
       })
 
       if (!response.body) return
-
       const reader = response.body.getReader()
       let fullContent = ''
 
@@ -131,7 +189,6 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
         setStreamingContent(fullContent)
       }
 
-      // 4. Save AI Message
       const { data: aiMsg } = await supabase
         .from('messages')
         .insert({
@@ -145,7 +202,6 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
       if (aiMsg) setMessages(prev => [...prev, aiMsg])
       setStreamingContent('')
 
-      // 5. Update title if not new (it was already set for 'new' chats)
       if (!isRegenerate && initialChatId !== 'new' && currentMessages.length === 1) {
         await supabase
           .from('conversations')
@@ -156,10 +212,8 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
           .eq('id', activeChatId)
       }
 
-      // Dispatch event for sidebar
       window.dispatchEvent(new CustomEvent('conversationUpdated'))
 
-      // 6. Finally, if it was a new chat, update URL
       if (initialChatId === 'new') {
         router.replace(`/chat/${activeChatId}`)
       }
@@ -172,6 +226,15 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
   }
 
   const regenerateMessage = async (index: number) => {
+    if (!user) {
+      const lastUserMsg = messages.slice(0, index).reverse().find(m => m.role === 'user')
+      if (!lastUserMsg) return
+      const previousMessages = messages.slice(0, index)
+      setMessages(previousMessages)
+      handleSend(lastUserMsg.content, selectedModel, true, previousMessages)
+      return
+    }
+    
     const lastUserMsg = messages.slice(0, index).reverse().find(m => m.role === 'user')
     if (!lastUserMsg) return
 
@@ -181,16 +244,18 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
 
     const previousMessages = messages.slice(0, index)
     setMessages(previousMessages)
-    
     handleSend(lastUserMsg.content, selectedModel, true, previousMessages)
   }
 
   const deleteMessage = async (id: string) => {
+    if (!user) {
+      setMessages(prev => prev.filter(m => m.id !== id))
+      return
+    }
     await supabase.from('messages').delete().eq('id', id)
     setMessages(prev => prev.filter(m => m.id !== id))
   }
 
-  // Helper to clean streaming content for display
   const displayStreamingContent = streamingContent
     .replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '')
     .trim()
@@ -205,6 +270,11 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">How can I help you today?</h2>
             <p className="text-[#96a9e6] max-w-sm">Select a model and start chatting with the world's fastest AI.</p>
+            {!user && (
+              <div className="mt-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
+                Guest Mode: {4 - guestMessageCount} messages remaining.
+              </div>
+            )}
           </div>
         )}
         
@@ -239,12 +309,35 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
             </div>
           </div>
         )}
+
+        {!user && guestMessageCount >= 4 && (
+          <div className="m-6 p-8 rounded-3xl bg-[#0a1839]/40 border border-[#32457c]/30 text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#32457c] to-[#0a2257] flex items-center justify-center mx-auto text-white shadow-xl">
+              <UserPlus size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Free limit reached!</h3>
+              <p className="text-sm text-[#96a9e6]">You've used all 4 free messages. Sign in to continue chatting and save your history.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <Link href="/login" className="px-6 py-2.5 rounded-xl bg-white text-[#070d1f] text-sm font-bold flex items-center justify-center gap-2 hover:scale-105 transition-transform">
+                <LogIn size={18} />
+                Sign In
+              </Link>
+              <Link href="/signup" className="px-6 py-2.5 rounded-xl border border-[#32457c]/50 text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#32457c]/20 transition-colors">
+                <UserPlus size={18} />
+                Create Account
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div ref={scrollRef} className="h-px" />
       </div>
 
       <ChatInput 
         onSend={(content, model) => handleSend(content, model)} 
-        disabled={loading} 
+        disabled={loading || (!user && guestMessageCount >= 4)} 
         onModelChange={setSelectedModel}
       />
     </div>
