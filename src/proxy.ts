@@ -58,9 +58,15 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect chat routes
-  if (!user && request.nextUrl.pathname.startsWith('/chat')) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Protect chat routes and handle root redirection
+  if (!user) {
+    if (request.nextUrl.pathname.startsWith('/chat') || request.nextUrl.pathname === '/') {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+  }
+
+  if (user && request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/chat', request.url))
   }
 
   // Redirect logged in users away from auth pages
