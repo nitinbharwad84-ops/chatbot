@@ -8,6 +8,7 @@ import Link from 'next/link'
 export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
@@ -20,12 +21,21 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
     const { error } = mode === 'login' 
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              full_name: name
+            }
+          }
+        })
 
     if (error) {
       setError(error.message)
       setLoading(false)
     } else {
+      // For signup, if confirmation is disabled in Supabase, this will redirect correctly
       router.push('/chat')
     }
   }
@@ -44,6 +54,18 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         
         <form className="mt-8 space-y-6" onSubmit={handleAuth}>
           <div className="space-y-4 rounded-md shadow-sm">
+            {mode === 'signup' && (
+              <div>
+                <input
+                  type="text"
+                  required
+                  className="relative block w-full rounded-xl border-0 bg-[#070d1f] py-3 text-white ring-1 ring-inset ring-[#32457c]/30 placeholder:text-[#96a9e6]/50 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-[#c6c6c7] sm:text-sm sm:leading-6"
+                  placeholder="Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+            )}
             <div>
               <input
                 type="email"
