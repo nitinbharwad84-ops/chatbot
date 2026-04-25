@@ -1,6 +1,8 @@
 'use client'
 
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import { Copy, RefreshCcw, Trash2, User, Bot } from 'lucide-react'
 import { Message } from '@/types/database'
 import { cn } from '@/lib/utils'
@@ -20,7 +22,7 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
 
   return (
     <div className={cn(
-      "flex w-full gap-4 p-6 transition-colors",
+      "group flex w-full gap-4 p-6 transition-colors",
       isUser ? "bg-transparent" : "bg-[#0a1839]/30"
     )}>
       <div className={cn(
@@ -31,8 +33,13 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
       </div>
       
       <div className="flex-1 space-y-2 overflow-hidden">
-        <div className="prose prose-invert max-w-none text-[#dfe4ff]">
-          <ReactMarkdown>{message.content}</ReactMarkdown>
+        <div className="prose prose-invert max-w-none text-[#dfe4ff] prose-table:border prose-table:border-[#32457c]/30 prose-th:bg-[#32457c]/10 prose-th:p-2 prose-td:p-2 prose-td:border-t prose-td:border-[#32457c]/20">
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]} 
+            rehypePlugins={[rehypeRaw]}
+          >
+            {message.content}
+          </ReactMarkdown>
         </div>
         
         {/* Actions */}

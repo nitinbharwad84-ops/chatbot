@@ -49,4 +49,28 @@ body {
   --tw-prose-code: #c6c6c7;
   --tw-prose-pre-bg: #0a1839;
   --tw-prose-pre-code: #dfe4ff;
+  --tw-prose-quotes: #96a9e6;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.prose th {
+  text-align: left;
+  border-bottom: 2px solid rgba(50, 69, 124, 0.4);
+  padding: 0.5rem;
+}
+
+.prose td {
+  border-bottom: 1px solid rgba(50, 69, 124, 0.2);
+  padding: 0.5rem;
+}
+
+.prose img {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(50, 69, 124, 0.3);
+  margin: 1.5rem 0;
 }
