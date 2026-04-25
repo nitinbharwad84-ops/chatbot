@@ -4,12 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Settings, User, LogOut, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import ProfileModal from './profile-modal'
+import SettingsModal from './settings-modal'
 
 export default function TopNav() {
   const [user, setUser] = useState<any>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [settingsState, setSettingsState] = useState<{isOpen: boolean, tab: string}>({
+    isOpen: false,
+    tab: 'general'
+  })
+  
   const supabase = createClient()
   const router = useRouter()
 
@@ -19,6 +23,13 @@ export default function TopNav() {
       setUser(user)
     }
     fetchUser()
+
+    // Listen for auth changes to update user metadata (like avatar)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null)
+    })
+
+    return () => subscription.unsubscribe()
   }, [supabase])
 
   const handleLogout = async () => {
@@ -26,8 +37,9 @@ export default function TopNav() {
     router.push('/login')
   }
 
-  // Get display name from metadata or email
+  // Get display name and avatar from metadata
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'
+  const avatarUrl = user?.user_metadata?.avatar_url
   const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
@@ -46,8 +58,10 @@ export default function TopNav() {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-[#0a1839] transition-colors group"
             >
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#32457c] to-[#0a2257] flex items-center justify-center text-xs font-bold text-white shadow-inner border border-[#c6c6c7]/10">
-                {initials}
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#32457c] to-[#0a2257] flex items-center justify-center text-xs font-bold text-white shadow-inner border border-[#c6c6c7]/10 overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                ) : initials}
               </div>
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium text-white line-clamp-1">{displayName}</p>
@@ -69,7 +83,7 @@ export default function TopNav() {
                   
                   <button 
                     onClick={() => {
-                      setIsProfileModalOpen(true)
+                      setSettingsState({ isOpen: true, tab: 'general' })
                       setIsDropdownOpen(false)
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[#dfe4ff] hover:bg-[#0a2257] transition-colors text-left"
@@ -80,7 +94,7 @@ export default function TopNav() {
                   
                   <button 
                     onClick={() => {
-                      setIsProfileModalOpen(true)
+                      setSettingsState({ isOpen: true, tab: 'preferences' })
                       setIsDropdownOpen(false)
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[#dfe4ff] hover:bg-[#0a2257] transition-colors text-left"
@@ -105,10 +119,11 @@ export default function TopNav() {
         </div>
       </nav>
 
-      <ProfileModal 
-        isOpen={isProfileModalOpen} 
-        onClose={() => setIsProfileModalOpen(false)} 
-        user={user} 
+      <SettingsModal 
+        isOpen={settingsState.isOpen} 
+        onClose={() => setSettingsState({ ...settingsState, isOpen: false })} 
+        user={user}
+        initialTab={settingsState.tab}
       />
     </>
   )
