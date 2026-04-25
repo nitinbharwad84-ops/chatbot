@@ -83,8 +83,8 @@ export default function SettingsModal({ isOpen, onClose, user, initialTab = 'gen
     
     setLoading(true)
     try {
-      const { error } = await supabase
-        .from('conversations')
+      const { error } = await (supabase
+        .from('conversations') as any)
         .delete()
         .eq('user_id', user.id)
       

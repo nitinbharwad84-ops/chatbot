@@ -134,8 +134,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
 
       // 2. AUTHENTICATED MODE (Normal Logic)
       if (activeChatId === 'new') {
-        const { data: newConv, error: convError } = await supabase
-          .from('conversations')
+        const { data: newConv, error: convError } = await (supabase.from('conversations') as any)
           .insert({ 
             user_id: user.id, 
             title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
@@ -150,8 +149,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
       }
 
       if (!isRegenerate) {
-        const { data: userMsg } = await supabase
-          .from('messages')
+        const { data: userMsg } = await (supabase.from('messages') as any)
           .insert({
             conversation_id: activeChatId,
             role: 'user',
@@ -189,8 +187,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
         setStreamingContent(fullContent)
       }
 
-      const { data: aiMsg } = await supabase
-        .from('messages')
+      const { data: aiMsg } = await (supabase.from('messages') as any)
         .insert({
           conversation_id: activeChatId,
           role: 'assistant',
@@ -203,8 +200,7 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
       setStreamingContent('')
 
       if (!isRegenerate && initialChatId !== 'new' && currentMessages.length === 1) {
-        await supabase
-          .from('conversations')
+        await (supabase.from('conversations') as any)
           .update({ 
             title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
             updated_at: new Date().toISOString()
@@ -299,8 +295,8 @@ export default function ChatWindow({ chatId: initialChatId }: { chatId: string }
                   remarkPlugins={[remarkGfm]} 
                   rehypePlugins={[rehypeRaw]}
                   components={{
-                    think: ({children}) => <>{children}</>
-                  }}
+                    think: ({ children }: { children: React.ReactNode }) => <>{children}</>
+                  } as any}
                 >
                   {displayStreamingContent || '...'}
                 </ReactMarkdown>

@@ -20,8 +20,8 @@ export default function Sidebar() {
   const chatId = params.chatId as string
 
   const fetchConversations = async (userId: string) => {
-    const { data } = await supabase
-      .from('conversations')
+    const { data } = await (supabase
+      .from('conversations') as any)
       .select('*')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
@@ -71,7 +71,7 @@ export default function Sidebar() {
     
     if (!confirm('Are you sure you want to delete this chat?')) return
 
-    const { error } = await supabase.from('conversations').delete().eq('id', id)
+    const { error } = await (supabase.from('conversations') as any).delete().eq('id', id)
     if (!error) {
       setConversations(prev => prev.filter(c => c.id !== id))
       if (chatId === id) {
