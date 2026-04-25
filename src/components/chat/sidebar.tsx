@@ -62,22 +62,9 @@ export default function Sidebar() {
     }
   }, [supabase])
 
-  const createNewChat = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({ user_id: user.id, title: 'New Chat' })
-      .select()
-      .single()
-
-    if (data) {
-      // Refresh local state immediately for faster UI feel
-      setConversations(prev => [data, ...prev])
-      router.push(`/chat/${data.id}`)
-      setIsMobileOpen(false)
-    }
+  const createNewChat = () => {
+    router.push('/chat')
+    setIsMobileOpen(false)
   }
 
   const deleteChat = async (id: string, e: React.MouseEvent) => {
