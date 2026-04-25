@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Message } from '@/types/database'
 import MessageBubble from './message-bubble'
@@ -15,18 +15,19 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
   const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [selectedModel, setSelectedModel] = useState('qwen/qwen3-32b')
-  const supabase = createClient()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (chatId) fetchMessages()
-  }, [chatId])
+  // Memoize supabase client
+  const supabase = useMemo(() => createClient(), [])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, streamingContent])
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [])
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
+    if (!chatId) return
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -34,13 +35,15 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
       .order('created_at', { ascending: true })
     
     if (data) setMessages(data)
-  }
+  }, [chatId, supabase])
 
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
+  useEffect(() => {
+    fetchMessages()
+  }, [fetchMessages])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, streamingContent, scrollToBottom])
 
   const handleSend = async (content: string, model: string, isRegenerate = false, overrideMessages?: Message[]) => {
     if (!chatId) return
@@ -103,10 +106,14 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
       if (aiMsg) setMessages(prev => [...prev, aiMsg])
       setStreamingContent('')
 
-      if (!isRegenerate && messages.length === 0) {
+      // Update conversation title if this is the first message
+      if (!isRegenerate && currentMessages.length === 1) {
         await supabase
           .from('conversations')
-          .update({ title: content.slice(0, 30) + (content.length > 30 ? '...' : '') })
+          .update({ 
+            title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+            updated_at: new Date().toISOString()
+          })
           .eq('id', chatId)
       }
 
@@ -175,7 +182,6 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
                   remarkPlugins={[remarkGfm]} 
                   rehypePlugins={[rehypeRaw]}
                   components={{
-                    // Prevent browser error for <think> tag
                     think: ({children}) => <>{children}</>
                   }}
                 >
