@@ -1,26 +1,52 @@
 @import "tailwindcss";
 
+@theme {
+  --font-inter: "Inter", sans-serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #070d1f;
+  --foreground: #dfe4ff;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #32457c;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c6c6c7;
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: rgba(10, 24, 57, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(50, 69, 124, 0.2);
+}
+
+/* Typography Overrides */
+.prose {
+  --tw-prose-body: #dfe4ff;
+  --tw-prose-headings: #ffffff;
+  --tw-prose-links: #c6c6c7;
+  --tw-prose-bold: #ffffff;
+  --tw-prose-code: #c6c6c7;
+  --tw-prose-pre-bg: #0a1839;
+  --tw-prose-pre-code: #dfe4ff;
 }
