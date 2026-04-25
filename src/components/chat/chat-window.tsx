@@ -2,15 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Message, Conversation } from '@/types/database'
+import { Message } from '@/types/database'
 import MessageBubble from './message-bubble'
 import ChatInput from './chat-input'
 import { Bot } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 
 export default function ChatWindow({ chatId }: { chatId: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [selectedModel, setSelectedModel] = useState('qwen/qwen3-32b')
   const supabase = createClient()
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -33,16 +37,19 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
   }
 
   const scrollToBottom = () => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
-  const handleSend = async (content: string, model: string, isRegenerate = false) => {
+  const handleSend = async (content: string, model: string, isRegenerate = false, overrideMessages?: Message[]) => {
     if (!chatId) return
+    setLoading(true)
+    setSelectedModel(model)
 
-    let currentMessages = [...messages]
+    let currentMessages = overrideMessages || [...messages]
 
     if (!isRegenerate) {
-      // 1. Save User Message
       const { data: userMsg } = await supabase
         .from('messages')
         .insert({
@@ -59,8 +66,6 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
       }
     }
 
-    // 2. Stream AI Response
-    setLoading(true)
     setStreamingContent('')
     try {
       const response = await fetch('/api/chat', {
@@ -85,7 +90,6 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
         setStreamingContent(fullContent)
       }
 
-      // 3. Save AI Message to DB
       const { data: aiMsg } = await supabase
         .from('messages')
         .insert({
@@ -99,7 +103,6 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
       if (aiMsg) setMessages(prev => [...prev, aiMsg])
       setStreamingContent('')
 
-      // 4. Update Conversation Title (if it's the first message)
       if (!isRegenerate && messages.length === 0) {
         await supabase
           .from('conversations')
@@ -115,22 +118,17 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
   }
 
   const regenerateMessage = async (index: number) => {
-    // Find the last user message before this index
     const lastUserMsg = messages.slice(0, index).reverse().find(m => m.role === 'user')
     if (!lastUserMsg) return
 
-    // Delete current assistant message if it exists at this index
     if (messages[index]?.role === 'assistant') {
       await deleteMessage(messages[index].id)
     }
 
-    // Set messages to everything before the deleted assistant message
     const previousMessages = messages.slice(0, index)
     setMessages(previousMessages)
-
-    // Trigger send with the last user content
-    // We assume the default model for now or we could store it in the conversation
-    handleSend(lastUserMsg.content, 'qwen-qwq-32b', true)
+    
+    handleSend(lastUserMsg.content, selectedModel, true, previousMessages)
   }
 
   const deleteMessage = async (id: string) => {
@@ -138,9 +136,11 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
     setMessages(prev => prev.filter(m => m.id !== id))
   }
 
+  // Helper to clean streaming content for display (removes <think> tag)
+  const displayStreamingContent = streamingContent.replace(/<think>[\s\S]*?<\/think>/, '').trim()
+
   return (
     <div className="flex h-full flex-col">
-      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto pb-40 scrollbar-hide">
         {messages.length === 0 && !streamingContent && (
           <div className="flex h-full flex-col items-center justify-center text-center p-8">
@@ -163,21 +163,28 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
         ))}
 
         {streamingContent && (
-          <div className="bg-[#0a1839]/30 flex w-full gap-4 p-6">
-             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#c6c6c7]/30 bg-[#c6c6c7] text-[#3f4041]">
-              <Bot size={18} />
+          <div className="bg-[#0a1839]/20 flex w-full gap-4 p-6 border-b border-[#32457c]/10">
+             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#c6c6c7]/30 bg-[#c6c6c7] text-[#3f4041]">
+              <Bot size={20} />
             </div>
-            <div className="prose prose-invert max-w-none text-[#dfe4ff]">
-              {streamingContent}
-              <span className="inline-block h-4 w-1 animate-pulse bg-[#c6c6c7] ml-1" />
+            <div className="flex-1 overflow-hidden">
+              <div className="prose prose-invert max-w-none text-[#dfe4ff]">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                  {displayStreamingContent || '...'}
+                </ReactMarkdown>
+                <span className="inline-block h-4 w-1 animate-pulse bg-[#c6c6c7] ml-1 align-middle" />
+              </div>
             </div>
           </div>
         )}
-        <div ref={scrollRef} />
+        <div ref={scrollRef} className="h-px" />
       </div>
 
-      {/* Input Area */}
-      <ChatInput onSend={(content, model) => handleSend(content, model)} disabled={loading} />
+      <ChatInput 
+        onSend={(content, model) => handleSend(content, model)} 
+        disabled={loading} 
+        onModelChange={setSelectedModel}
+      />
     </div>
   )
 }

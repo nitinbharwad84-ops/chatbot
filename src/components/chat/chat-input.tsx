@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const MODELS = [
@@ -13,10 +13,11 @@ const MODELS = [
 
 interface ChatInputProps {
   onSend: (message: string, model: string) => void
+  onModelChange?: (modelId: string) => void
   disabled?: boolean
 }
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, onModelChange, disabled }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [selectedModel, setSelectedModel] = useState(MODELS[1].id)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -41,6 +42,11 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
   }
 
+  const handleModelSelect = (id: string) => {
+    setSelectedModel(id)
+    onModelChange?.(id)
+  }
+
   return (
     <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#070d1f] via-[#070d1f] to-transparent pt-10 pb-8 px-4">
       <div className="mx-auto max-w-3xl space-y-4">
@@ -49,7 +55,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           {MODELS.map((model) => (
             <button
               key={model.id}
-              onClick={() => setSelectedModel(model.id)}
+              onClick={() => handleModelSelect(model.id)}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-all border",
                 selectedModel === model.id 
