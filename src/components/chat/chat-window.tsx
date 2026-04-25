@@ -9,16 +9,29 @@ import { Bot } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import { useRouter } from 'next/navigation'
 
-export default function ChatWindow({ chatId }: { chatId: string }) {
+export default function ChatWindow({ chatId: initialChatId }: { chatId: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [selectedModel, setSelectedModel] = useState('qwen/qwen3-32b')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  // Internal state for the actual chatId being used
+  const [currentChatId, setCurrentChatId] = useState(initialChatId)
 
   // Memoize supabase client
   const supabase = useMemo(() => createClient(), [])
+
+  // Sync internal state with props
+  useEffect(() => {
+    setCurrentChatId(initialChatId)
+    if (initialChatId === 'new') {
+      setMessages([])
+    }
+  }, [initialChatId])
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -27,15 +40,15 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
   }, [])
 
   const fetchMessages = useCallback(async () => {
-    if (!chatId) return
+    if (!currentChatId || currentChatId === 'new') return
     const { data } = await supabase
       .from('messages')
       .select('*')
-      .eq('conversation_id', chatId)
+      .eq('conversation_id', currentChatId)
       .order('created_at', { ascending: true })
     
     if (data) setMessages(data)
-  }, [chatId, supabase])
+  }, [currentChatId, supabase])
 
   useEffect(() => {
     fetchMessages()
@@ -46,37 +59,62 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
   }, [messages, streamingContent, scrollToBottom])
 
   const handleSend = async (content: string, model: string, isRegenerate = false, overrideMessages?: Message[]) => {
-    if (!chatId) return
     setLoading(true)
     setSelectedModel(model)
 
+    let activeChatId = currentChatId
     let currentMessages = overrideMessages || [...messages]
 
-    if (!isRegenerate) {
-      const { data: userMsg } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: chatId,
-          role: 'user',
-          content: content
-        })
-        .select()
-        .single()
-
-      if (userMsg) {
-        currentMessages = [...currentMessages, userMsg]
-        setMessages(currentMessages)
-      }
-    }
-
-    setStreamingContent('')
     try {
+      // 1. If this is a new chat, create it first
+      if (activeChatId === 'new') {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Not authenticated')
+
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert({ 
+            user_id: user.id, 
+            title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+            model_id: model
+          })
+          .select()
+          .single()
+
+        if (convError || !newConv) throw convError || new Error('Failed to create conversation')
+        
+        activeChatId = newConv.id
+        setCurrentChatId(activeChatId)
+        // We will redirect at the end to avoid component unmount/remount mid-stream
+      }
+
+      // 2. Save User Message
+      if (!isRegenerate) {
+        const { data: userMsg } = await supabase
+          .from('messages')
+          .insert({
+            conversation_id: activeChatId,
+            role: 'user',
+            content: content
+          })
+          .select()
+          .single()
+
+        if (userMsg) {
+          currentMessages = [...currentMessages, userMsg]
+          setMessages(currentMessages)
+        }
+      }
+
+      setStreamingContent('')
+
+      // 3. Get AI Stream
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: JSON.stringify({
           messages: currentMessages.map(m => ({ role: m.role, content: m.content })),
           model: model,
-          conversationId: chatId
+          conversationId: activeChatId
         })
       })
 
@@ -93,10 +131,11 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
         setStreamingContent(fullContent)
       }
 
+      // 4. Save AI Message
       const { data: aiMsg } = await supabase
         .from('messages')
         .insert({
-          conversation_id: chatId,
+          conversation_id: activeChatId,
           role: 'assistant',
           content: fullContent
         })
@@ -106,18 +145,23 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
       if (aiMsg) setMessages(prev => [...prev, aiMsg])
       setStreamingContent('')
 
-      // Update conversation title if this is the first message
-      if (!isRegenerate && currentMessages.length === 1) {
+      // 5. Update title if not new (it was already set for 'new' chats)
+      if (!isRegenerate && initialChatId !== 'new' && currentMessages.length === 1) {
         await supabase
           .from('conversations')
           .update({ 
             title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
             updated_at: new Date().toISOString()
           })
-          .eq('id', chatId)
-        
-        // Dispatch custom event for immediate sidebar update
-        window.dispatchEvent(new CustomEvent('conversationUpdated'))
+          .eq('id', activeChatId)
+      }
+
+      // Dispatch event for sidebar
+      window.dispatchEvent(new CustomEvent('conversationUpdated'))
+
+      // 6. Finally, if it was a new chat, update URL
+      if (initialChatId === 'new') {
+        router.replace(`/chat/${activeChatId}`)
       }
 
     } catch (err) {
@@ -146,7 +190,7 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
     setMessages(prev => prev.filter(m => m.id !== id))
   }
 
-  // Helper to clean streaming content for display (removes <think> tag and its content even if partial)
+  // Helper to clean streaming content for display
   const displayStreamingContent = streamingContent
     .replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '')
     .trim()
