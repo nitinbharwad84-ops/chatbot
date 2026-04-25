@@ -76,7 +76,7 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
             rehypePlugins={[rehypeRaw, rehypeKatex]}
             components={{
               // Prevent browser error for <think> tag
-              think: ({children}) => <>{children}</>,
+              think: ({ children }: { children: React.ReactNode }) => <>{children}</>,
               code({ node, inline, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || '')
                 return !inline && match ? (
@@ -105,7 +105,7 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
                   </code>
                 )
               }
-            }}
+            } as any}
           >
             {displayContent}
           </ReactMarkdown>
