@@ -306,6 +306,7 @@ export default function SettingsModal({ isOpen, onClose, user, initialTab = 'gen
                     { name: 'Qwen 3 32B', desc: 'Default reasoning model (Fast & Smart)', id: 'qwen/qwen3-32b', status: 'active' },
                     { name: 'Llama 3.3 70B', desc: 'Powerful general purpose model', id: 'llama-3.3-70b-versatile', status: 'available' },
                     { name: 'GPT OSS 120B', desc: 'Maximum intelligence for complex tasks', id: 'openai/gpt-oss-120b', status: 'available' },
+                    { name: 'Llama 3.1 8B', desc: 'Lightning fast responses for simple tasks', id: 'llama-3.1-8b-instant', status: 'available' },
                   ].map((m, i) => (
                     <div key={i} className={cn(
                       "p-4 rounded-2xl border transition-all",

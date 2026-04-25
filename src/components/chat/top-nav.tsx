@@ -88,19 +88,8 @@ export default function TopNav() {
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[#dfe4ff] hover:bg-[#0a2257] transition-colors text-left"
                   >
-                    <User size={16} className="text-[#96a9e6]" />
-                    Profile Settings
-                  </button>
-                  
-                  <button 
-                    onClick={() => {
-                      setSettingsState({ isOpen: true, tab: 'preferences' })
-                      setIsDropdownOpen(false)
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[#dfe4ff] hover:bg-[#0a2257] transition-colors text-left"
-                  >
                     <Settings size={16} className="text-[#96a9e6]" />
-                    App Settings
+                    Settings
                   </button>
 
                   <div className="h-px bg-[#32457c]/10 my-1" />
