@@ -115,6 +115,9 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
             updated_at: new Date().toISOString()
           })
           .eq('id', chatId)
+        
+        // Dispatch custom event for immediate sidebar update
+        window.dispatchEvent(new CustomEvent('conversationUpdated'))
       }
 
     } catch (err) {

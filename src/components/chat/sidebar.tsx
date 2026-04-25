@@ -49,8 +49,16 @@ export default function Sidebar() {
         console.log('Supabase Realtime status:', status)
       })
 
+    // Listen for manual update events
+    const handleUpdate = () => {
+      console.log('Manual update event received')
+      fetchConversations()
+    }
+    window.addEventListener('conversationUpdated', handleUpdate)
+
     return () => {
       supabase.removeChannel(channel)
+      window.removeEventListener('conversationUpdated', handleUpdate)
     }
   }, [supabase])
 
