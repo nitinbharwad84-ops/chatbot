@@ -52,10 +52,32 @@ body {
   --tw-prose-quotes: #96a9e6;
 }
 
+.prose {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.prose p {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.prose ul, .prose ol {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose li {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1rem 0;
+  margin: 2rem 0;
+  font-size: 0.95em;
 }
 
 .prose th {
