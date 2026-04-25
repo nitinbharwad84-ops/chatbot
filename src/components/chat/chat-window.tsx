@@ -136,8 +136,10 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
     setMessages(prev => prev.filter(m => m.id !== id))
   }
 
-  // Helper to clean streaming content for display (removes <think> tag)
-  const displayStreamingContent = streamingContent.replace(/<think>[\s\S]*?<\/think>/, '').trim()
+  // Helper to clean streaming content for display (removes <think> tag and its content even if partial)
+  const displayStreamingContent = streamingContent
+    .replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '')
+    .trim()
 
   return (
     <div className="flex h-full flex-col">
@@ -169,7 +171,14 @@ export default function ChatWindow({ chatId }: { chatId: string }) {
             </div>
             <div className="flex-1 overflow-hidden">
               <div className="prose prose-invert max-w-none text-[#dfe4ff]">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]} 
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    // Prevent browser error for <think> tag
+                    think: ({children}) => <>{children}</>
+                  }}
+                >
                   {displayStreamingContent || '...'}
                 </ReactMarkdown>
                 <span className="inline-block h-4 w-1 animate-pulse bg-[#c6c6c7] ml-1 align-middle" />

@@ -25,9 +25,9 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
   const [copied, setCopied] = useState(false)
 
   // Extract <think> content if it exists
-  const thinkMatch = message.content.match(/<think>([\s\S]*?)<\/think>/)
+  const thinkMatch = message.content.match(/<think>([\s\S]*?)(?:<\/think>|$)/)
   const thought = thinkMatch ? thinkMatch[1].trim() : null
-  const displayContent = message.content.replace(/<think>[\s\S]*?<\/think>/, '').trim()
+  const displayContent = message.content.replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '').trim()
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message.content)
@@ -75,6 +75,8 @@ export default function MessageBubble({ message, onDelete, onRegenerate }: Messa
             remarkPlugins={[remarkGfm, remarkMath]} 
             rehypePlugins={[rehypeRaw, rehypeKatex]}
             components={{
+              // Prevent browser error for <think> tag
+              think: ({children}) => <>{children}</>,
               code({ node, inline, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || '')
                 return !inline && match ? (
